@@ -1,142 +1,133 @@
 import java.util.Random;
-import java.util.Scanner;
-
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane.MaximizeAction;
 
 public class Person {
-	Scanner sc = new Scanner(System.in);
-	static Random rand = new Random();
-	private long[] pfSum = new long[10];
-	private int[] num = new int[10];
-	private static int[] profit = new int[4];
-	private static int gene;
+	static final int GENE_LEN = 100; // more than 2
+	static final int INITIAL_MONEY = 1000;
+	static final int MUTANT_GAP = 100;
+	static final int FIRST = 50;
+	static final double MUTANT = 5;
+	static final int SELECTION_PRESSURE = 4;
+	Random rand = new Random();
 
-	static final int GENE_LEN = 8;
-	private static int[] gain = new int[GENE_LEN];
-	static final int INITIAL_MONEY = 900;
-	static double MUTANT = 1 * 100;
-	static double DeltaMutant = 0;
+	private int[] gene = new int[GENE_LEN];
+	private int[] gain = new int[GENE_LEN];
+	private int[] fitness = new int[GENE_LEN];
 	private int funds;
 
 	public void setInitiolFunds() {
-		funds = INITIAL_MONEY;
+		this.funds = INITIAL_MONEY;
 	}
 
 	public int getFunds() {
-		return funds;
+		return this.funds;
 	}
 
-	public static void setGene(int n) {
-		gene = n;
+	public void setGene(int n) {
+		for (int i = 0; i < GENE_LEN; i++)
+			this.gene[i] = n;
 	}
 
-	public static void setGain(int n) {
-		for (int i = 0; i < 8; i++)
-			gain[i] = n;
-	}
-
-	public int getNum(int donation) {
-		return num[donation];
-	}
-
-	public double getMeanProfit(int donation) {
-		return pfSum[donation] / (double) num[donation];
-	}
-
-	public int first() {
-//		System.out.print("기부할 금액을 입력하세요> ");
-		int money = rand.nextInt(INITIAL_MONEY / 100 + 1) * 100;
-//		System.out.println(money);
-//		money = INITIAL_MONEY;
-		funds -= money;
-		return money;
-	}
-
-	public int select(int money) {
-		funds -= money * 100;
-		return money * 100;
+	public void setGain(int n) {
+		for (int i = 0; i < GENE_LEN; i++)
+			this.gain[i] = n;
 	}
 
 	public int mutant(int money) {
-		int randint = rand.nextInt(10);
+		int randint = rand.nextInt(2 * MUTANT_GAP + 1);
 		int reMon = money;
-		if (randint == 0)
-			reMon -= 2;
-		else if (randint < 5)
-			reMon -= 1;
-		else if (randint >= 9)
-			reMon += 2;
-		else
-			reMon += 1;
-//		System.out.println(reMon);
-		if (reMon >= 0 && reMon <= 9)
-			return reMon;
-		else
-			return mutant(money);
+		reMon += (randint - MUTANT_GAP);
+		if (reMon > 1000)
+			reMon = 1000;
+		else if (reMon < 0)
+			reMon = 0;
+		return reMon;
 	}
 
-	public static int pow(int n) {
-		if (n == 0)
-			return 1;
-		else
-			return 10 * pow(n - 1);
-	}
-
-	public int donation(int idx) {
+	public int rouletteWheel() {
 		int money = -1;
-		int totalGain = 0;
-		for (int i = 0; i < GENE_LEN; i++) {
-			if (gain[i] > 0)
-				totalGain += gain[i];
+		int bestGain = this.gain[0];
+		int worstGain = this.gain[0];
+		double totalFitness = 0;
+		for (int i = 1; i < GENE_LEN; i++) {
+			if (bestGain < this.gain[i])
+				bestGain = this.gain[i];
+			if (worstGain > this.gain[i])
+				worstGain = this.gain[i];
 		}
-		double gainRate = (10000.0 - MUTANT) / totalGain;
+		int C = (bestGain - worstGain) / (SELECTION_PRESSURE - 1);
+		for (int i = 0; i < GENE_LEN; i++)
+			this.fitness[i] = (this.gain[i] - worstGain) + C;
+
+		for (int i = 0; i < GENE_LEN; i++)
+			totalFitness += this.fitness[i];
+		double Rate = (100.0 - MUTANT) * 100 / totalFitness;
 		int randint = rand.nextInt(10000);
+		if(totalFitness == 0 && randint >= MUTANT)
+			money = this.gene[0];
 		double bound = 0;
 		for (int i = 0; i < GENE_LEN; i++) {
-			if (gain[i] > 0) {
-				bound += gain[i] * gainRate;
-				if (bound > randint) {
-					money = (gene / pow(GENE_LEN - i - 1)) % 10;
-					break;
-				}
+			bound += this.fitness[i] * Rate;
+			if (bound > randint) {
+				money = this.gene[i];
+				break;
 			}
 		}
-		if (money == -1) {
-			int geneSum = 0;
-			int m = gene;
-			for (int i = 0; i < 8; i++) {
-				geneSum += m % 10;
-				m /= 10;
+		if (money == -1)
+			money = mutant(this.gene[0]);
+		this.funds -= money;
+		return money;
+	}
+
+	public int ranking() {
+		int money = -1;
+		int firstGain = -10000;
+		int secondGain = -10000;
+		int firstGene = 0, secondGene = 0;
+		for (int i = 0; i < GENE_LEN; i++) {
+			if (firstGain < this.gain[i]) {
+				secondGain = firstGain;
+				firstGain = this.gain[i];
+				secondGene = firstGene;
+				firstGene = i;
+			} else if (secondGain < this.gain[i]) {
+				secondGain = this.gain[i];
+				secondGene = i;
 			}
-			money = mutant(geneSum / 8);
-//			System.out.println(money);
 		}
-		funds -= money * 100;
-		return money * 100;
+		int randint = rand.nextInt(100);
+		if (randint < FIRST)
+			money = this.gene[firstGene];
+		else if (randint > 99 - MUTANT)
+			money = mutant(this.gene[firstGene]);
+		else
+			money = this.gene[secondGene];
+		this.funds -= money;
+		return money;
 	}
 
-	public int repartition(int money, int idx) {
-		int dona = (INITIAL_MONEY - funds) / 100;
-		funds += 0.5 * money;
-		int profit = funds - INITIAL_MONEY;
-		pfSum[dona] += profit;
-		num[dona] += 1;
-		this.profit[idx] = profit / 10;
-		return dona;
+	public int donation() {
+		return rouletteWheel();
+		//return ranking();
 	}
 
-	public static void mkGene(int newGene) {
-		for (int i = 0; i < PGG.MAX_PERSON; i++) {
-			int nw = newGene % 10;
-			newGene /= 10;
-			int idx = rand.nextInt(8);
-			int old = (gene / pow(idx)) % 10;
-			gene += (nw - old) * pow(idx);
-			gain[7 - idx] = profit[3 - i];
+	public void repartition(int money) {
+		int dona = INITIAL_MONEY - this.funds;
+		this.funds += 0.5 * money;
+		int profit = this.funds - INITIAL_MONEY;
+
+		for (int x = GENE_LEN - 1; x > 0; x--) {
+			this.gene[x] = this.gene[x - 1];
+			this.gain[x] = this.gain[x - 1];
 		}
+		this.gene[0] = dona;
+		this.gain[0] = profit;
+		System.out.print(" ");
 	}
 
-	public static int getGene() {
-		return gene;
+	public String getGene() {
+		String data = "";
+		for (int i = 0; i < GENE_LEN; i++)
+			data += this.gene[i] + " ";
+		return data;
 	}
 }
